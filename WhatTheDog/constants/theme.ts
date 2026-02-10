@@ -5,25 +5,39 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// Modern Blue palette (accessible, high-contrast)
+// Light: Tailwind blue-600; Dark: blue-400
+const tintColorLight = '#2563eb';
+const tintColorDark = '#60a5fa';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: '#0b1220',
+    background: '#f8fafc',
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: '#64748b',
+    tabIconDefault: '#64748b',
     tabIconSelected: tintColorLight,
+    surface: '#ffffff',
+    border: '#e2e8f0',
+    muted: '#94a3b8',
+    success: '#10b981',
+    danger: '#ef4444',
+    overlay: 'rgba(255,255,255,0.65)'
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    text: '#e5e7eb',
+    background: '#0b1220',
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
+    icon: '#9ca3af',
+    tabIconDefault: '#9ca3af',
     tabIconSelected: tintColorDark,
+    surface: '#121826',
+    border: '#1f2937',
+    muted: '#9ca3af',
+    success: '#34d399',
+    danger: '#f87171',
+    overlay: 'rgba(18,24,38,0.5)'
   },
 };
 
@@ -45,7 +59,7 @@ export const Fonts = Platform.select({
     mono: 'monospace',
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    sans: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
     rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
