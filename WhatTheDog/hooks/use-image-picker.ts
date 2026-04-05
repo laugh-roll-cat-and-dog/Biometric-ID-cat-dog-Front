@@ -1,4 +1,6 @@
 import { ImagePickerResult, PickedImage } from "@/types";
+import { toUserErrorMessage } from "@/utils/user-error";
+import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 
@@ -7,6 +9,52 @@ export const useImagePickerHook = (): ImagePickerResult => {
   const [images, setImages] = useState<PickedImage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const getResizeAction = (
+    asset: ImagePicker.ImagePickerAsset,
+  ): ImageManipulator.Action[] => {
+    const maxDimension = 1600;
+    const { width, height } = asset;
+
+    if (
+      !width ||
+      !height ||
+      (width <= maxDimension && height <= maxDimension)
+    ) {
+      return [];
+    }
+
+    if (width >= height) {
+      return [{ resize: { width: maxDimension } }];
+    }
+
+    return [{ resize: { height: maxDimension } }];
+  };
+
+  const normalizeToJpeg = async (
+    asset: ImagePicker.ImagePickerAsset,
+  ): Promise<PickedImage> => {
+    const originalName =
+      asset.fileName || asset.uri.split("/").pop() || `image_${Date.now()}`;
+    const baseName = originalName.replace(/\.[^/.]+$/, "");
+
+    const manipulated = await ImageManipulator.manipulateAsync(
+      asset.uri,
+      getResizeAction(asset),
+      {
+        compress: 0.8,
+        format: ImageManipulator.SaveFormat.JPEG,
+      },
+    );
+
+    return {
+      uri: manipulated.uri,
+      name: `${baseName}.jpg`,
+      type: "image/jpeg",
+      width: manipulated.width,
+      height: manipulated.height,
+    };
+  };
 
   const requestPermissions = async () => {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
@@ -27,7 +75,7 @@ export const useImagePickerHook = (): ImagePickerResult => {
       const permissions = await requestPermissions();
 
       if (!permissions.gallery) {
-        setError("Gallery permission denied");
+        setError(toUserErrorMessage("permission denied", "gallery"));
         setLoading(false);
         return;
       }
@@ -40,14 +88,9 @@ export const useImagePickerHook = (): ImagePickerResult => {
       } as any);
 
       if (!result.canceled && result.assets.length > 0) {
-        const newImages = result.assets.map((asset) => ({
-          uri: asset.uri,
-          name: asset.uri.split("/").pop() || `image_${Date.now()}.jpg`,
-          type: asset.type || "image/jpeg",
-          width: asset.width,
-          height: asset.height,
-          size: asset.fileSize,
-        }));
+        const newImages = await Promise.all(
+          result.assets.map((asset) => normalizeToJpeg(asset)),
+        );
         if (allowMultiple) {
           setImages([...images, ...newImages]);
           setImage(null);
@@ -57,7 +100,7 @@ export const useImagePickerHook = (): ImagePickerResult => {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to pick image");
+      setError(toUserErrorMessage(err, "gallery"));
     } finally {
       setLoading(false);
     }
@@ -71,7 +114,7 @@ export const useImagePickerHook = (): ImagePickerResult => {
       const permissions = await requestPermissions();
 
       if (!permissions.camera) {
-        setError("Camera permission denied");
+        setError(toUserErrorMessage("permission denied", "camera"));
         setLoading(false);
         return;
       }
@@ -83,17 +126,7 @@ export const useImagePickerHook = (): ImagePickerResult => {
 
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0];
-        const filename =
-          asset.uri.split("/").pop() || `photo_${Date.now()}.jpg`;
-
-        const newImage = {
-          uri: asset.uri,
-          name: filename,
-          type: asset.type || "image/jpeg",
-          width: asset.width,
-          height: asset.height,
-          size: asset.fileSize,
-        };
+        const newImage = await normalizeToJpeg(asset);
 
         if (allowMultiple) {
           setImages([...images, newImage]);
@@ -104,7 +137,7 @@ export const useImagePickerHook = (): ImagePickerResult => {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to take photo");
+      setError(toUserErrorMessage(err, "camera"));
     } finally {
       setLoading(false);
     }

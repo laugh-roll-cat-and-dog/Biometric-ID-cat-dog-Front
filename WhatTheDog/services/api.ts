@@ -5,7 +5,9 @@ import {
   SearchResponse,
   UploadResponse,
 } from "@/types";
+import { toUserErrorMessage } from "@/utils/user-error";
 import axios, { AxiosInstance } from "axios";
+import { Platform } from "react-native";
 
 const api: AxiosInstance = axios.create({
   baseURL: API_CONFIG.BASE_URL,
@@ -62,6 +64,40 @@ export const testConnection = async (): Promise<boolean> => {
   }
 };
 
+const fetchWithAbortTimeout = async <T>(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<T> => {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+
+    const rawText = await response.text();
+    const parsed = rawText ? JSON.parse(rawText) : null;
+
+    if (!response.ok) {
+      throw new Error(
+        parsed?.detail || parsed?.message || `HTTP ${response.status}`,
+      );
+    }
+
+    return parsed as T;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(API_CONFIG.ERROR_MESSAGES.TIMEOUT_ERROR);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+};
+
 /**
  * Search for dogs by text query
  * @param query - Search text (breed name, dog name, etc.)
@@ -72,18 +108,33 @@ export const searchDogByText = async (
   searchMode: "name" | "id" = "name",
 ): Promise<SearchResponse> => {
   try {
+    // Use fetch on Android for better compatibility with ngrok tunnel
+    if (Platform.OS === "android") {
+      return await fetchWithAbortTimeout<SearchResponse>(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SEARCH_TEXT}`,
+        {
+          method: "POST",
+          headers: API_CONFIG.DEFAULT_HEADERS,
+          body: JSON.stringify({
+            query: query,
+            search_mode: searchMode,
+          }),
+        },
+        API_CONFIG.SEARCH_TIMEOUT,
+      );
+    }
+
     const response = await api.post<SearchResponse>(
       API_CONFIG.ENDPOINTS.SEARCH_TEXT,
       {
         query: query,
         search_mode: searchMode,
       },
+      { timeout: API_CONFIG.SEARCH_TIMEOUT },
     );
     return response.data;
   } catch (error) {
-    throw new Error(
-      `Text search failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw new Error(toUserErrorMessage(error, "search"));
   }
 };
 
@@ -116,16 +167,27 @@ export const searchDogByImage = async (
       type: mimeType,
     } as any);
 
+    // Use fetch on Android for better compatibility with ngrok tunnel
+    if (Platform.OS === "android") {
+      return await fetchWithAbortTimeout<SearchResponse>(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SEARCH_IMAGE}`,
+        {
+          method: "POST",
+          body: formData,
+        },
+        API_CONFIG.SEARCH_TIMEOUT,
+      );
+    }
+
     const response = await api.post<SearchResponse>(
       API_CONFIG.ENDPOINTS.SEARCH_IMAGE,
       formData,
+      { timeout: API_CONFIG.SEARCH_TIMEOUT },
     );
 
     return response.data;
   } catch (error) {
-    throw new Error(
-      `Image search failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw new Error(toUserErrorMessage(error, "imageSearch"));
   }
 };
 
@@ -144,6 +206,7 @@ export const uploadDogImage = async (
     console.log("[Upload] Dog data:", dogData);
     console.log("[Upload] API Base URL:", API_CONFIG.BASE_URL);
     console.log("[Upload] Upload endpoint:", API_CONFIG.ENDPOINTS.UPLOAD_DOG);
+    console.log("[Upload] Platform:", Platform.OS);
 
     const filename = imageUri.split("/").pop() || `dog_${Date.now()}.jpg`;
     const lowerName = filename.toLowerCase();
@@ -155,8 +218,15 @@ export const uploadDogImage = async (
 
     // Create FormData (React Native expects a file object with uri)
     const formData = new FormData();
+
+    // On Android, ensure proper file URI handling
+    const fileUri =
+      Platform.OS === "android" && imageUri.startsWith("/")
+        ? `file://${imageUri}`
+        : imageUri;
+
     formData.append("images", {
-      uri: imageUri,
+      uri: fileUri,
       name: filename,
       type: mimeType,
     } as any);
@@ -167,25 +237,57 @@ export const uploadDogImage = async (
 
     console.log("[Upload] FormData prepared, sending request...");
 
-    const uploadResponse = await api.post<{
-      message: string;
-      filename: string;
-      bytes: number;
-      path: string;
-      pet_info: {
-        name: string;
-        breed: string;
-        age: number;
-        description: string;
+    // Use fetch on Android for better ngrok tunnel compatibility
+    if (Platform.OS === "android") {
+      const uploadUrl = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.UPLOAD_DOG}`;
+      console.log("[Upload Android] Upload URL:", uploadUrl);
+
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        body: formData,
+        // Don't set Content-Type header - let the platform handle it for FormData
+      });
+
+      const rawText = await response.text();
+      console.log("[Upload Android] Response status:", response.status);
+      console.log("[Upload Android] Response text:", rawText);
+
+      const parsed = rawText ? JSON.parse(rawText) : null;
+
+      if (!response.ok) {
+        throw new Error(
+          parsed?.detail || parsed?.message || `HTTP ${response.status}`,
+        );
+      }
+
+      console.log("[Upload] Upload successful:", parsed);
+
+      return {
+        success: true,
+        message: parsed?.message || "Upload successful",
       };
-    }>(API_CONFIG.ENDPOINTS.UPLOAD_DOG, formData);
+    } else {
+      // Use axios for iOS
+      const uploadResponse = await api.post<{
+        message: string;
+        filename: string;
+        bytes: number;
+        path: string;
+        pet_info: {
+          name: string;
+          breed: string;
+          age: number;
+          description: string;
+        };
+      }>(API_CONFIG.ENDPOINTS.UPLOAD_DOG, formData);
 
-    console.log("[Upload] Upload successful:", uploadResponse.data);
+      console.log("[Upload] Upload successful:", uploadResponse.data);
 
-    return {
-      success: true,
-      message: uploadResponse.data.message,
-    };
+      return {
+        success: true,
+        message: uploadResponse.data.message,
+      };
+    }
   } catch (error: any) {
     console.error("[Upload] Error occurred:", error);
     console.error("[Upload] Error message:", error.message);
@@ -198,7 +300,7 @@ export const uploadDogImage = async (
       (error instanceof Error ? error.message : JSON.stringify(error));
     console.error("Upload error details:", errorMessage);
     console.error("Full error response:", error.response?.data);
-    throw new Error(`Upload failed: ${errorMessage}`);
+    throw new Error(toUserErrorMessage(errorMessage, "upload"));
   }
 };
 
@@ -212,18 +314,23 @@ export const uploadMultipleDogImages = async (
   dogData: DogUploadData,
 ): Promise<UploadResponse> => {
   if (imageUris.length === 0) {
-    throw new Error("No images provided for upload");
+    throw new Error(
+      toUserErrorMessage("No images provided for upload", "upload"),
+    );
   }
 
   try {
     console.log("[Batch Upload] Starting multiple image upload");
     console.log("[Batch Upload] Number of images:", imageUris.length);
+    console.log("[Batch Upload] Platform:", Platform.OS);
 
     const formData = new FormData();
 
-    imageUris.forEach((imageUri, index) => {
+    // Read files and append to FormData
+    for (let i = 0; i < imageUris.length; i++) {
+      const imageUri = imageUris[i];
       const filename =
-        imageUri.split("/").pop() || `dog_${index}_${Date.now()}.jpg`;
+        imageUri.split("/").pop() || `dog_${i}_${Date.now()}.jpg`;
       const lowerName = filename.toLowerCase();
       const mimeType = lowerName.endsWith(".png")
         ? "image/png"
@@ -231,28 +338,64 @@ export const uploadMultipleDogImages = async (
           ? "image/jpeg"
           : "image/jpeg";
 
+      // On Android, ensure proper file URI handling
+      const fileUri =
+        Platform.OS === "android" && imageUri.startsWith("/")
+          ? `file://${imageUri}`
+          : imageUri;
+
       formData.append("images", {
-        uri: imageUri,
+        uri: fileUri,
         name: filename,
         type: mimeType,
       } as any);
-    });
+    }
 
     formData.append("name", dogData.name);
     formData.append("breed", dogData.breed);
     formData.append("age", String(dogData.age || 0));
     formData.append("description", dogData.description || "");
 
-    console.log("[Batch Upload] FormData prepared, sending single request...");
+    console.log("[Batch Upload] FormData prepared, sending request...");
 
-    await api.post(API_CONFIG.ENDPOINTS.UPLOAD_DOG, formData);
+    // Use fetch on Android for better ngrok tunnel compatibility
+    if (Platform.OS === "android") {
+      const uploadUrl = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.UPLOAD_DOG}`;
+      console.log("[Batch Upload Android] Upload URL:", uploadUrl);
 
-    console.log("[Batch Upload] Upload successful");
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        body: formData,
+        // Don't set Content-Type header - let the platform handle it for FormData
+      });
 
-    return {
-      success: true,
-      message: `Successfully uploaded ${imageUris.length} image${imageUris.length > 1 ? "s" : ""}`,
-    };
+      const rawText = await response.text();
+      console.log("[Batch Upload Android] Response status:", response.status);
+      console.log("[Batch Upload Android] Response text:", rawText);
+
+      const parsed = rawText ? JSON.parse(rawText) : null;
+
+      if (!response.ok) {
+        throw new Error(
+          parsed?.detail || parsed?.message || `HTTP ${response.status}`,
+        );
+      }
+
+      console.log("[Batch Upload] Upload successful");
+      return {
+        success: true,
+        message: `Successfully uploaded ${imageUris.length} image${imageUris.length > 1 ? "s" : ""}`,
+      };
+    } else {
+      // Use axios for iOS
+      await api.post(API_CONFIG.ENDPOINTS.UPLOAD_DOG, formData);
+
+      console.log("[Batch Upload] Upload successful");
+      return {
+        success: true,
+        message: `Successfully uploaded ${imageUris.length} image${imageUris.length > 1 ? "s" : ""}`,
+      };
+    }
   } catch (error: any) {
     console.error("[Batch Upload] Error occurred:", error);
     console.error("[Batch Upload] Error message:", error.message);
@@ -264,7 +407,7 @@ export const uploadMultipleDogImages = async (
       error.response?.data?.message ||
       (error instanceof Error ? error.message : JSON.stringify(error));
     console.error("Batch upload error details:", errorMessage);
-    throw new Error(`Batch upload failed: ${errorMessage}`);
+    throw new Error(toUserErrorMessage(errorMessage, "upload"));
   }
 };
 
@@ -278,9 +421,7 @@ export const getAllDogs = async (): Promise<SearchResponse> => {
     );
     return response.data;
   } catch (error) {
-    throw new Error(
-      `Failed to fetch dogs: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw new Error(toUserErrorMessage(error, "general"));
   }
 };
 

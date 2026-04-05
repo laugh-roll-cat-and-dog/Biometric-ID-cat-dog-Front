@@ -1,3 +1,4 @@
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useState } from "react";
 import {
   ActionSheetIOS,
@@ -5,12 +6,12 @@ import {
   Alert,
   Platform,
   Image as RNImage,
-  SafeAreaView,
   ScrollView,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Card } from "@/components/common/Card";
 import { ThemedText } from "@/components/themed-text";
@@ -20,6 +21,7 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useImagePickerHook } from "@/hooks/use-image-picker";
 import { uploadMultipleDogImages } from "@/services/api";
+import { toUserErrorMessage, USER_MESSAGES } from "@/utils/user-error";
 
 const AGE_OPTIONS = [
   "1 year",
@@ -36,6 +38,7 @@ const AGE_OPTIONS = [
 const MAX_DESCRIPTION_LENGTH = 200;
 
 export default function UploadScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme();
   const styles = getUploadStyles(colorScheme ?? "light");
   const {
@@ -57,11 +60,11 @@ export default function UploadScreen() {
 
   const validateForm = (): boolean => {
     if (!dogName.trim()) {
-      setError("Please enter the dog's name");
+      setError(USER_MESSAGES.DOG_NAME_REQUIRED);
       return false;
     }
     if (images.length === 0) {
-      setError("Please select at least one image");
+      setError(USER_MESSAGES.UPLOAD_IMAGE_REQUIRED);
       return false;
     }
     return true;
@@ -111,20 +114,22 @@ export default function UploadScreen() {
 
       if (response?.success) {
         setSuccess(true);
-        Alert.alert("Success", "Dog image(s) uploaded successfully!", [
-          {
-            text: "OK",
-            onPress: resetForm,
-          },
-        ]);
+        Alert.alert(
+          USER_MESSAGES.UPLOAD_SUCCESS_TITLE,
+          USER_MESSAGES.UPLOAD_SUCCESS_BODY,
+          [
+            {
+              text: "OK",
+              onPress: resetForm,
+            },
+          ],
+        );
       } else {
-        setError(response?.message || "Upload failed");
+        setError(response?.message || toUserErrorMessage(null, "upload"));
       }
     } catch (err) {
       console.error("[Upload] Catch error:", err);
-      setError(
-        err instanceof Error ? err.message : "An error occurred during upload",
-      );
+      setError(toUserErrorMessage(err, "upload"));
     } finally {
       setLoading(false);
     }
@@ -154,6 +159,7 @@ export default function UploadScreen() {
 
   return (
     <SafeAreaView
+      edges={["top", "bottom"]}
       style={{
         flex: 1,
         backgroundColor: Colors[colorScheme ?? "light"].background,
@@ -161,7 +167,10 @@ export default function UploadScreen() {
     >
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingBottom: tabBarHeight + 24 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
@@ -194,7 +203,7 @@ export default function UploadScreen() {
                 Upload photos of your dog
               </ThemedText>
               <ThemedText style={styles.uploadSubtitle}>
-                Select multiple images · JPG, PNG · Max 5MB each
+                Upload at least 4 images for best results.
               </ThemedText>
 
               <TouchableOpacity
@@ -260,7 +269,7 @@ export default function UploadScreen() {
         </Card>
 
         {/* Dog Information Section */}
-        <Card>
+        <Card style={{ marginTop: 20 }}>
           <ThemedText type="subtitle" style={styles.cardTitle}>
             Dog Information
           </ThemedText>
@@ -310,6 +319,7 @@ export default function UploadScreen() {
               keyboardType="numeric"
               style={styles.input}
               placeholder="1"
+              maxLength={2}
               placeholderTextColor="#999"
               value={age}
               onChangeText={(text) => setAge(text.replace(/[^0-9]/g, ""))}
@@ -391,12 +401,6 @@ export default function UploadScreen() {
               <ThemedText style={styles.clearButtonText}>Clear Form</ThemedText>
             </TouchableOpacity>
           )}
-        </ThemedView>
-
-        <ThemedView style={styles.requiredNote}>
-          <ThemedText style={styles.requiredNoteText}>
-            * = Required fields
-          </ThemedText>
         </ThemedView>
       </ScrollView>
     </SafeAreaView>

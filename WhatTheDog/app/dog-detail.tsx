@@ -1,11 +1,7 @@
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useLayoutEffect } from "react";
-import {
-    Image as RNImage,
-    SafeAreaView,
-    ScrollView,
-    TouchableOpacity,
-} from "react-native";
+import { Image as RNImage, ScrollView, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -13,6 +9,7 @@ import { getSearchStyles } from "@/constants/style";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { DogSearchResult } from "@/services/api";
+import { resolveImageUri } from "@/utils/resolve-image-uri";
 
 export default function DogDetailScreen() {
   const router = useRouter();
@@ -37,6 +34,7 @@ export default function DogDetailScreen() {
   if (!dogData) {
     return (
       <SafeAreaView
+        edges={["top"]}
         style={{
           flex: 1,
           backgroundColor: Colors[colorScheme ?? "light"].background,
@@ -68,6 +66,7 @@ export default function DogDetailScreen() {
 
   return (
     <SafeAreaView
+      edges={["top", "bottom"]}
       style={{
         flex: 1,
         backgroundColor: Colors[colorScheme ?? "light"].background,
@@ -113,7 +112,7 @@ export default function DogDetailScreen() {
             }}
           >
             <RNImage
-              source={{ uri: `file://${imagesToShow[0].path}` }}
+              source={{ uri: resolveImageUri(imagesToShow[0].path) }}
               style={{ width: "100%", height: 280 }}
             />
           </ThemedView>
@@ -156,7 +155,7 @@ export default function DogDetailScreen() {
                   }}
                 >
                   <RNImage
-                    source={{ uri: `file://${img.path}` }}
+                    source={{ uri: resolveImageUri(img.path) }}
                     style={{ width: 240, height: 240 }}
                   />
                 </ThemedView>
@@ -213,6 +212,15 @@ export default function DogDetailScreen() {
               <ThemedText style={labelStyle}>DESCRIPTION</ThemedText>
               <ThemedText style={{ fontSize: 16, lineHeight: 24 }}>
                 {dogData.description}
+              </ThemedText>
+            </ThemedView>
+          )}
+
+          {dogData.average_similarity !== undefined && (
+            <ThemedView style={{ gap: 8 }}>
+              <ThemedText style={labelStyle}>SIMILARITY</ThemedText>
+              <ThemedText style={{ fontSize: 16, lineHeight: 24 }}>
+                {dogData.average_similarity}
               </ThemedText>
             </ThemedView>
           )}

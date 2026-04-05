@@ -1,16 +1,17 @@
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image as RNImage,
-  SafeAreaView,
   ScrollView,
   Switch,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Card } from "@/components/common/Card";
 import { ThemedText } from "@/components/themed-text";
@@ -24,9 +25,12 @@ import {
   searchDogByImage,
   searchDogByText,
 } from "@/services/api";
+import { resolveImageUri } from "@/utils/resolve-image-uri";
+import { toUserErrorMessage, USER_MESSAGES } from "@/utils/user-error";
 
 export default function SearchScreen() {
   const router = useRouter();
+  const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme();
   const styles = getSearchStyles(colorScheme ?? "light");
   const { image, pickImageFromGallery, takePhotoWithCamera, clearImage } =
@@ -40,7 +44,7 @@ export default function SearchScreen() {
 
   const handleTextSearch = async () => {
     if (!searchQuery.trim()) {
-      setError("Please enter a search query");
+      setError(USER_MESSAGES.SEARCH_QUERY_REQUIRED);
       return;
     }
 
@@ -53,12 +57,10 @@ export default function SearchScreen() {
       if (response.results && response.results.length > 0) {
         setResults(response.results);
       } else {
-        setError("No dogs found matching your search");
+        setError(USER_MESSAGES.SEARCH_NO_RESULTS);
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "An error occurred during search",
-      );
+      setError(toUserErrorMessage(err, "search"));
     } finally {
       setLoading(false);
     }
@@ -66,7 +68,7 @@ export default function SearchScreen() {
 
   const handleImageSearch = async () => {
     if (!image) {
-      setError("Please select an image first");
+      setError(USER_MESSAGES.IMAGE_REQUIRED);
       return;
     }
 
@@ -79,61 +81,75 @@ export default function SearchScreen() {
       if (response.results && response.results.length > 0) {
         setResults(response.results);
       } else {
-        setError("No matching dogs found");
+        setError(USER_MESSAGES.SEARCH_NO_RESULTS);
       }
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "An error occurred during image search",
-      );
+      setError(toUserErrorMessage(err, "imageSearch"));
     } finally {
       setLoading(false);
     }
   };
 
-  const renderResultItem = ({ item }: { item: DogSearchResult }) => (
-    <TouchableOpacity
-      onPress={() => {
-        router.push({
-          pathname: "/dog-detail",
-          params: { dogData: JSON.stringify(item) },
-        });
-      }}
-    >
-      <ThemedView style={styles.resultCard}>
-        {item.images && item.images.length > 0 && (
-          <RNImage
-            source={{ uri: `file://${item.images[0].path}` }}
-            style={styles.resultImage}
-          />
-        )}
-        <ThemedView style={styles.resultContent}>
-          <ThemedView
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <ThemedText
-              type="subtitle"
-              numberOfLines={1}
-              style={[styles.resultName, { flex: 1 }]}
+  const renderResultItem = ({ item }: { item: DogSearchResult }) => {
+    const imageUri =
+      item.images && item.images.length > 0
+        ? resolveImageUri(item.images[0].path)
+        : undefined;
+
+    if (item.images && item.images.length > 0) {
+      console.log("[Search Result] Dog:", item.name, "Image data:", {
+        path: item.images[0].path,
+        filename: item.images[0].filename,
+        resolvedUri: imageUri,
+      });
+    }
+
+    return (
+      <TouchableOpacity
+        onPress={() => {
+          router.push({
+            pathname: "/dog-detail",
+            params: { dogData: JSON.stringify(item) },
+          });
+        }}
+      >
+        <ThemedView style={styles.resultCard}>
+          {imageUri && (
+            <RNImage
+              source={{ uri: imageUri }}
+              style={styles.resultImage}
+              onLoad={() => console.log("[Image Loaded]", imageUri)}
+              onError={(error) => console.log("[Image Error]", imageUri, error)}
+            />
+          )}
+          <ThemedView style={styles.resultContent}>
+            <ThemedView
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
             >
-              {item.name}
-            </ThemedText>
-            <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>
-              #{item.id}
-            </ThemedText>
+              <ThemedText
+                type="subtitle"
+                numberOfLines={1}
+                style={[styles.resultName, { flex: 1 }]}
+              >
+                {item.name}
+              </ThemedText>
+              <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>
+                #{item.id}
+              </ThemedText>
+            </ThemedView>
           </ThemedView>
         </ThemedView>
-      </ThemedView>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView
+      edges={["top", "bottom"]}
       style={{
         flex: 1,
         backgroundColor: Colors[colorScheme ?? "light"].background,
@@ -141,7 +157,10 @@ export default function SearchScreen() {
     >
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingBottom: tabBarHeight + 24 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
@@ -354,7 +373,7 @@ export default function SearchScreen() {
                     styles.imageButton,
                     { backgroundColor: Colors[colorScheme ?? "light"].tint },
                   ]}
-                  onPress={takePhotoWithCamera}
+                  onPress={() => takePhotoWithCamera()}
                 >
                   <ThemedText style={styles.imageButtonIcon}>📷</ThemedText>
                   <ThemedText style={styles.imageButtonText}>Camera</ThemedText>
