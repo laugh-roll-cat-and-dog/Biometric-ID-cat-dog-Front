@@ -7,7 +7,7 @@
 
 
 const DEFAULT_REMOTE_API_URL =
-  "http://0.0.0.0:8000/";
+"PASTE_YOUR_NGROK_URL_HERE"; // e.g. "https://my-api-server.com/api"
 
 const normalizeBaseUrl = (url: string): string => url.replace(/\/+$/, "");
 

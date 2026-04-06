@@ -23,6 +23,7 @@ docker-compose up --build
 ```
 
 This will:
+
 - Create and start PostgreSQL container
 - Initialize database with schema from `init.sql`
 - Build and start the FastAPI API container
@@ -86,11 +87,11 @@ If port 5432 or 8000 is already in use, edit `docker-compose.yml`:
 ```yaml
 postgres:
   ports:
-    - "5433:5432"  # Change left number (host port)
+    - "5433:5432" # Change left number (host port)
 
 api:
   ports:
-    - "8001:8000"  # Change left number (host port)
+    - "8001:8000" # Change left number (host port)
 ```
 
 ### Database Connection Issues
@@ -121,6 +122,7 @@ docker-compose up --build --force-recreate
 Update your React Native app's API configuration to use the containerized backend:
 
 **config/api.ts:**
+
 ```typescript
 export const API_CONFIG = {
   BASE_URL: "http://localhost:8000",  // For local testing
@@ -135,6 +137,7 @@ export const API_CONFIG = {
 For production, you can:
 
 1. **Push to Docker Hub:**
+
    ```bash
    docker build -t yourusername/whatthedog-api .
    docker push yourusername/whatthedog-api
@@ -157,6 +160,6 @@ Tables are automatically created on first run via `init.sql`:
 ## 🔗 Docker Network
 
 Services communicate via `whatthedog_network`:
+
 - API container connects to `postgres:5432`
 - Frontend connects to API at `localhost:8000`
-

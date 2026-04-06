@@ -5,6 +5,7 @@ This document describes each exported API operation in [services/api.ts](../serv
 ## 1) testConnection
 
 ### Flow Diagram
+
 ```mermaid
 flowchart TD
   A[Start testConnection] --> B[Log base URL]
@@ -17,6 +18,7 @@ flowchart TD
 ```
 
 ### Sequence Diagram
+
 ```mermaid
 sequenceDiagram
   participant UI as Caller
@@ -41,6 +43,7 @@ sequenceDiagram
 ## 2) searchDogByText
 
 ### Flow Diagram
+
 ```mermaid
 flowchart TD
   A[Start searchDogByText query searchMode] --> B[Build JSON body]
@@ -51,6 +54,7 @@ flowchart TD
 ```
 
 ### Sequence Diagram
+
 ```mermaid
 sequenceDiagram
   participant UI as Caller
@@ -75,6 +79,7 @@ sequenceDiagram
 ## 3) searchDogByImage
 
 ### Flow Diagram
+
 ```mermaid
 flowchart TD
   A[Start searchDogByImage imageUri imageType] --> B[Create FormData]
@@ -87,6 +92,7 @@ flowchart TD
 ```
 
 ### Sequence Diagram
+
 ```mermaid
 sequenceDiagram
   participant UI as Caller
@@ -112,6 +118,7 @@ sequenceDiagram
 ## 4) uploadDogImage
 
 ### Flow Diagram
+
 ```mermaid
 flowchart TD
   A[Start uploadDogImage imageUri dogData] --> B[Log upload context]
@@ -126,6 +133,7 @@ flowchart TD
 ```
 
 ### Sequence Diagram
+
 ```mermaid
 sequenceDiagram
   participant UI as Caller
@@ -152,6 +160,7 @@ sequenceDiagram
 ## 5) uploadMultipleDogImages
 
 ### Flow Diagram
+
 ```mermaid
 flowchart TD
   A[Start uploadMultipleDogImages imageUris dogData] --> B{imageUris empty?}
@@ -167,6 +176,7 @@ flowchart TD
 ```
 
 ### Sequence Diagram
+
 ```mermaid
 sequenceDiagram
   participant UI as Caller
@@ -197,6 +207,7 @@ sequenceDiagram
 ## 6) getAllDogs
 
 ### Flow Diagram
+
 ```mermaid
 flowchart TD
   A[Start getAllDogs] --> B[GET /dogs]
@@ -206,6 +217,7 @@ flowchart TD
 ```
 
 ### Sequence Diagram
+
 ```mermaid
 sequenceDiagram
   participant UI as Caller
